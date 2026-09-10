@@ -1,0 +1,34 @@
+services:
+  postgres_aipcc:
+    image: postgres:16
+    container_name: aipcc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aipcc_user
+      POSTGRES_PASSWORD: aipcc_pass
+      POSTGRES_DB: aipcc_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - aipcc_pg_data:/var/lib/postgresql/data
+
+  n8n_aipcc:
+    image: n8nio/n8n:latest
+    container_name: aipcc_n8n
+    restart: unless-stopped
+    ports:
+      - "5679:5678"
+    environment:
+      - N8N_LOG_LEVEL=debug
+      - N8N_SECURE_COOKIE=false
+      - GENERIC_TIMEZONE=Asia/Jakarta
+      - TZ=Asia/Jakarta
+      - WEBHOOK_URL=https://YOUR-NGROK-DOMAIN/
+    volumes:
+      - aipcc_n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres_aipcc
+
+volumes:
+  aipcc_pg_data:
+  aipcc_n8n_data:

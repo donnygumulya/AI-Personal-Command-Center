@@ -1,0 +1,1005 @@
+{
+  "name": "AIPCC - Phase 1",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -256,
+        0
+      ],
+      "id": "661dfb6f-afea-4b0b-b0e4-453c091470a6",
+      "name": "Telegram Trigger",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "==You are an intent classification and entity extraction engine for a personal task assistant.\n\nToday's date is {{ $now.format('yyyy-MM-dd') }} ({{ $now.format('cccc') }}). Timezone: Asia/Jakarta.\n\nReturn ONLY valid JSON, no markdown formatting, no code fences, no explanation — just the raw JSON object, in this exact shape:\n{\n  \"intent\": \"create_task\" | \"list_tasks\" | \"create_event\" | \"list_events\" | \"unknown\",\n  \"title\": string or null,\n  \"description\": string or null,\n  \"due_at\": string or null,\n  \"query_date\": string or null\n}\n\nRules:\n- Use \"unknown\" if the message doesn't clearly match one of the other intents.\n- For create_task: title is required. due_at is optional — set it if the user mentioned a deadline or time (this makes it a reminder).\n- For create_event: title and due_at are both required (due_at is the event start time).\n- For list_tasks: title, description, and due_at should all be null.\n- For list_events: title, description, and due_at should all be null. Use this when the user is asking what's on their calendar/schedule, as opposed to asking about their to-do tasks.\n- query_date only applies to list_tasks and list_events. If the user asks about a specific day (\"today\", \"tomorrow\", \"this Friday\", \"on the 15th\"), resolve it into an absolute ISO date (YYYY-MM-DD) using today's date above. If no specific day is mentioned (e.g. plain \"what are my tasks\" or \"what's on my calendar\"), set query_date to null.\n- For create_task, create_event, and unknown, query_date is always null.\n- Resolve relative dates/times (\"Friday at 10am\", \"tomorrow\", \"next week\") into an absolute ISO 8601 datetime (e.g. \"2026-09-11T10:00:00+07:00\") using today's date above."
+            },
+            {
+              "content": "=={{ $('Telegram Trigger').item.json.message.text }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        288,
+        272
+      ],
+      "id": "6739f0e4-4853-4c6d-abb5-b26012f2b913",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_ME",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.item.json.output[0].content[0].text;\nconst cleaned = raw.replace(/```json|```/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = { intent: 'unknown', title: null, description: null, due_at: null, query_date: null };\n}\n\nlet range_start, range_end;\nif (parsed.query_date) {\n  const start = new Date(parsed.query_date + 'T00:00:00+07:00');\n  range_start = start.toISOString();\n  range_end = new Date(start.getTime() + 24 * 60 * 60 * 1000).toISOString();\n} else {\n  range_start = new Date().toISOString();\n  range_end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();\n}\n\nreturn {\n  json: {\n    ...parsed,\n    telegram_chat_id: $('Telegram Trigger').item.json.message.chat.id,\n    original_message: $('Telegram Trigger').item.json.message.text,\n    range_start,\n    range_end\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        272
+      ],
+      "id": "76d086b6-bb52-458b-a50b-aa6bdc871341",
+      "name": "Parse Intent Response"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "create_task",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b5c43eda-c1d3-4f14-8126-3435ca3bba10"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Create Task"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "544fb5b9-d558-4680-99c6-31527775f4b0",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "list_tasks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "List Tasks"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "32f2c19f-fc67-4787-90e9-92b0acf852f1",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "create_event",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Create Event"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "db87d72a-c2c4-4466-93a3-b74e80d4fb40",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "list_events",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "List Events"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        832,
+        224
+      ],
+      "id": "321bcdc7-c0c9-4849-9091-007f9c208977",
+      "name": "Route by Intent"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tasks",
+          "mode": "list",
+          "cachedResultName": "tasks"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telegram_chat_id": "={{ $json.telegram_chat_id }}",
+            "title": "={{ $json.title }}",
+            "description": "={{ $json.description }}",
+            "due_at": "={{ $json.due_at }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "telegram_chat_id",
+              "displayName": "telegram_chat_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "due_at",
+              "displayName": "due_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "reminded_at",
+              "displayName": "reminded_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1040,
+        -144
+      ],
+      "id": "3094cf4d-ed4b-4fc0-87d2-d5d73a5d10d0",
+      "name": "Insert Task",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Intent Response').item.json.telegram_chat_id }}",
+        "text": "=✅ Task added: {{ $('Parse Intent Response').item.json.title }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1264,
+        -144
+      ],
+      "id": "9f11b235-dd04-4367-bdb1-5a042eab186f",
+      "name": "Reply - Task Added",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, description, due_at\nFROM tasks\nWHERE telegram_chat_id = {{ $('Parse Intent Response').item.json.telegram_chat_id }}\n  AND status = 'pending'\n  {{ $('Parse Intent Response').item.json.query_date ? `AND due_at >= '${$('Parse Intent Response').item.json.range_start}' AND due_at < '${$('Parse Intent Response').item.json.range_end}'` : '' }}\nORDER BY due_at ASC NULLS LAST, created_at ASC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1040,
+        16
+      ],
+      "id": "900ca41d-546c-4af2-baa4-a959991b5bc8",
+      "name": "Query Pending Tasks",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json).filter(row => row && row.id);\nconst queryDate = $('Parse Intent Response').item.json.query_date;\nconst header = queryDate ? `📋 Tasks due ${queryDate}:` : '📋 Your pending tasks:';\n\nif (rows.length === 0) {\n  return [{ json: { reply_text: queryDate ? `Nothing due on ${queryDate}. 🎉` : \"You've got no pending tasks. 🎉\" } }];\n}\n\nconst lines = rows.map((row, i) => {\n  const due = row.due_at\n    ? new Date(row.due_at).toLocaleString('en-GB', {\n        dateStyle: 'medium',\n        timeStyle: 'short',\n        timeZone: 'Asia/Jakarta'\n      })\n    : null;\n  return `${i + 1}. ${row.title}${due ? ` — due ${due}` : ''}`;\n});\n\nreturn [{ json: { reply_text: `${header}\\n\\n${lines.join('\\n')}` } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        16
+      ],
+      "id": "33e96291-35dc-4f3f-8780-962d76f32480",
+      "name": "Format Task List"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Intent Response').item.json.telegram_chat_id }}",
+        "text": "={{ $json.reply_text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1488,
+        16
+      ],
+      "id": "357bdafe-9289-4ab3-b00e-1b4d89c68045",
+      "name": "Reply - Task List",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "start": "={{ $('Parse Intent Response').item.json.due_at }}",
+        "end": "={{ new Date(new Date($('Parse Intent Response').item.json.due_at).getTime() + 60*60*1000).toISOString() }}",
+        "additionalFields": {
+          "description": "={{ $('Parse Intent Response').item.json.description }}",
+          "summary": "={{ $('Parse Intent Response').item.json.title }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1040,
+        192
+      ],
+      "id": "3a68df0e-05e1-4f61-8bc5-c2b8a7df4cc5",
+      "name": "Create an event",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Intent Response').item.json.telegram_chat_id }}",
+        "text": "=📅 Event created: {{ $('Parse Intent Response').item.json.title }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1264,
+        192
+      ],
+      "id": "240a644b-fb91-4ef1-9f0c-d1c0e43aee22",
+      "name": "Reply - Event Created",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Intent Response').item.json.telegram_chat_id }}",
+        "text": "🤔 I didn't quite catch that. Try something like:\n- \"Remind me to call the bank tomorrow at 3pm\"\n- \"What are my tasks?\"\n- \"Schedule a meeting with John on Friday at 10am\"",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        592
+      ],
+      "id": "254030ef-3ce2-4245-9b7e-02295afc5633",
+      "name": "Reply - Unknown Intent",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "limit": 10,
+        "timeMin": "={{ $json.range_start }}",
+        "timeMax": "={{ $json.range_end }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1040,
+        400
+      ],
+      "id": "1159c98e-37fa-4c43-90a3-75e448fe06c4",
+      "name": "Get many events",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.all().map(item => item.json).filter(ev => ev && ev.id);\nconst queryDate = $('Parse Intent Response').item.json.query_date;\nconst header = queryDate ? `📅 Events on ${queryDate}:` : '📅 Upcoming events:';\n\nif (events.length === 0) {\n  return [{\n    json: {\n      reply_text: queryDate\n        ? `Nothing on your calendar for ${queryDate}. 🎉`\n        : \"Nothing on your calendar for the next 7 days. 🎉\"\n    }\n  }];\n}\n\nconst lines = events.map((ev, i) => {\n  const start = ev.start?.dateTime || ev.start?.date;\n  const when = start\n    ? new Date(start).toLocaleString('en-GB', {\n        dateStyle: 'medium',\n        timeStyle: 'short',\n        timeZone: 'Asia/Jakarta'\n      })\n    : 'No time set';\n  return `${i + 1}. ${ev.summary || '(no title)'} — ${when}`;\n});\n\nreturn [{ json: { reply_text: `${header}\\n\\n${lines.join('\\n')}` } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        400
+      ],
+      "id": "96402053-e7c6-47cd-80dc-74a3cf963480",
+      "name": "Format Event List"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Intent Response').item.json.telegram_chat_id }}",
+        "text": "={{ $json.reply_text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1536,
+        400
+      ],
+      "id": "267bd587-8eaa-4084-b97a-1a1b9264b413",
+      "name": "Reply - Event List",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  EXISTS (\n    SELECT 1 FROM pending_confirmations WHERE telegram_chat_id = {{ $json.message.chat.id }}\n  ) AS has_pending,\n  (\n    SELECT row_to_json(t) FROM (\n      SELECT id, title, description, due_at\n      FROM pending_confirmations\n      WHERE telegram_chat_id = {{ $json.message.chat.id }}\n      ORDER BY created_at ASC\n      LIMIT 1\n    ) t\n  ) AS pending;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -64,
+        0
+      ],
+      "id": "a3199a26-8e86-4665-89d3-6f49343b7a51",
+      "name": "Check Pending Confirmation",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f7976fab-247c-4763-9d8e-a8c973eac2e1",
+              "leftValue": "={{ $json.has_pending }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        112,
+        0
+      ],
+      "id": "62ba045a-3de1-4091-8007-4a757eade03c",
+      "name": "Has Pending Confirmation?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const text = $('Telegram Trigger').item.json.message.text.trim();\nconst pending = $json.pending;\n\nlet reply_type;\nif (/^y(es)?$/i.test(text)) reply_type = 'yes';\nelse if (/^no?$/i.test(text)) reply_type = 'no';\nelse reply_type = 'unclear';\n\nreturn {\n  json: {\n    reply_type,\n    telegram_chat_id: $('Telegram Trigger').item.json.message.chat.id,\n    pending_id: pending.id,\n    title: pending.title,\n    description: pending.description,\n    due_at: pending.due_at\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        -176
+      ],
+      "id": "10560401-8da3-4616-9c5b-05353b8e4737",
+      "name": "Parse Confirmation Reply"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reply_type }}",
+                    "rightValue": "yes",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8b29ddae-c041-4cc7-8b8e-fd09f2db26f3"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Yes"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3c2594b7-8663-4aec-8205-2e6a9542ae61",
+                    "leftValue": "={{ $json.reply_type }}",
+                    "rightValue": "no",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "No"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        528,
+        -320
+      ],
+      "id": "d2c64bc3-29b3-4a8e-b76f-9f0352139105",
+      "name": "Route by Confirmation Reply"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (telegram_chat_id, title, description, due_at)\nVALUES (\n  {{ $json.telegram_chat_id }},\n  '{{ $json.title.replace(/'/g, \"''\") }}',\n  '{{ ($json.description || \"\").replace(/'/g, \"''\") }}',\n  {{ $json.due_at ? `'${$json.due_at}'` : 'NULL' }}\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        736,
+        -672
+      ],
+      "id": "82f6459c-0798-4574-999b-146f71434b38",
+      "name": "Insert Confirmed Task",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM pending_confirmations WHERE id = {{ $json.pending_id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        912,
+        -560
+      ],
+      "id": "f0feed03-8092-440b-8dbf-951675b64be7",
+      "name": "Delete Pending Confirmation",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "==✅ Task added: {{ $json.title }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1088,
+        -672
+      ],
+      "id": "c9589851-5c4b-48e8-b3f8-b442507e56fe",
+      "name": "Reply - Confirmed Task Added",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🗑️ Discarded.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1088,
+        -480
+      ],
+      "id": "b3e6a1f4-7c2d-4a9e-8f1b-6d5c4e3a2b10",
+      "name": "Reply - Discarded",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "==Please reply YES or NO for: \"{{ $json.title }}\"",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        752,
+        -208
+      ],
+      "id": "15517028-a674-47db-a179-6222a753e764",
+      "name": "Reply - Ask Yes or No",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Pending Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse Intent Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Intent Response": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [
+          {
+            "node": "Insert Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Pending Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create an event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get many events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply - Unknown Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Task": {
+      "main": [
+        [
+          {
+            "node": "Reply - Task Added",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Pending Tasks": {
+      "main": [
+        [
+          {
+            "node": "Format Task List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Task List": {
+      "main": [
+        [
+          {
+            "node": "Reply - Task List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event": {
+      "main": [
+        [
+          {
+            "node": "Reply - Event Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many events": {
+      "main": [
+        [
+          {
+            "node": "Format Event List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Event List": {
+      "main": [
+        [
+          {
+            "node": "Reply - Event List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Pending Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Has Pending Confirmation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Pending Confirmation?": {
+      "main": [
+        [
+          {
+            "node": "Parse Confirmation Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Confirmation Reply": {
+      "main": [
+        [
+          {
+            "node": "Route by Confirmation Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Confirmation Reply": {
+      "main": [
+        [
+          {
+            "node": "Insert Confirmed Task",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Delete Pending Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reply - Confirmed Task Added",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Pending Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reply - Discarded",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply - Ask Yes or No",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}
