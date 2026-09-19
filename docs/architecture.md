@@ -209,7 +209,7 @@ Both return at most 10 issues across every project the user can see. `Format Jir
 
 ## Task reminders
 
-A third, independent workflow (`Every 5 Minutes → Claim Due Reminders → Send Reminder`) messages you on Telegram when a pending task is due within the next hour. It uses `tasks.reminded_at`, added in Phase 1 for this purpose, so each task is reminded once.
+A third, independent workflow (`Every 5 Minutes → Claim Due Reminders → Any Due? → Send Reminder`) messages you on Telegram when a pending task is due within the next hour. It uses `tasks.reminded_at`, added in Phase 1 for this purpose, so each task is reminded once.
 
 One Postgres statement finds and marks the tasks together:
 
@@ -226,7 +226,7 @@ Each returned row becomes one Telegram message, sent to that task's own `telegra
 ### Decisions worth knowing
 
 - **Claim first, send second.** `reminded_at` is set before the message goes out, so a failed Telegram send loses that reminder instead of sending it twice. Reminders are at-most-once by design.
-- **An empty result sends nothing, on purpose.** n8n skips downstream nodes when a node returns zero items. Elsewhere that needed Always Output Data; here it's the desired behavior, so leave that setting off on `Claim Due Reminders`.
+- **An empty result still emits one item, so an IF node guards the send.** An `UPDATE ... RETURNING` that matches nothing makes the Postgres node output a single `{"success": true}` item, not zero items. Without a guard, `Send Reminder` runs with no chat ID and fails ("Bad request") on every empty poll. `Any Due?` passes only items where `telegram_chat_id` exists, so an empty run ends quietly after that node.
 - **15-minute grace window.** A task created due in 3 minutes can pass its due time before the next poll, and the window still reminds you. Older overdue tasks, including the whole backlog on the first run, are ignored, so activating the workflow doesn't flood you.
 - **Fixed lead time and polling delay.** One reminder, one hour ahead, up to 5 minutes late. Change the `1 hour` in the query for a different lead time. A second reminder at the due moment isn't implemented.
 - **No tunnel needed.** The workflow only sends outbound Telegram messages, so it works while ngrok is down, as long as n8n is running.

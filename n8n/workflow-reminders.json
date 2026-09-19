@@ -44,6 +44,40 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6b1f0c1e-3a55-4c1e-9d0a-1f2e3d4c5b11",
+              "leftValue": "={{ !!$json.telegram_chat_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        0
+      ],
+      "id": "6b1f0c1e-3a55-4c1e-9d0a-1f2e3d4c5b04",
+      "name": "Any Due?"
+    },
+    {
+      "parameters": {
         "chatId": "={{ $json.telegram_chat_id }}",
         "text": "=⏰ Reminder: {{ $json.title }}\nDue {{ new Date($json.due_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }) }}",
         "additionalFields": {}
@@ -51,8 +85,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        448,
-        0
+        672,
+        -16
       ],
       "id": "6b1f0c1e-3a55-4c1e-9d0a-1f2e3d4c5b03",
       "name": "Send Reminder",
@@ -80,11 +114,23 @@
       "main": [
         [
           {
-            "node": "Send Reminder",
+            "node": "Any Due?",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Any Due?": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },

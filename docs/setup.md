@@ -469,3 +469,5 @@ The workflow makes only outbound Telegram calls, so it works without the ngrok t
 **Test:** send the bot "remind me to test the reminder in 30 minutes" and wait up to 5 minutes. You should get "⏰ Reminder: ..." with the due time, and `SELECT title, reminded_at FROM tasks ORDER BY id DESC LIMIT 1;` should show `reminded_at` set. To skip the wait, open the workflow and click **Execute workflow**.
 
 Tasks that are already more than 15 minutes overdue, and tasks with no due time, are never reminded.
+
+**Empty-run check:** with nothing due, click **Execute workflow**. It should finish green, with `Claim Due Reminders` showing one `{success: true}` item, `Any Due?` sending it down its false branch, and `Send Reminder` not executed. A red `Send Reminder` with "Bad request" means the `Any Due?` node is missing or misconnected.
