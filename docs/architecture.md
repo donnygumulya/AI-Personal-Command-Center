@@ -173,3 +173,36 @@ CREATE TABLE pending_confirmations (
 - **Owner chat ID must be configured, not derived.** Phase 1 gets `telegram_chat_id` from the incoming message; the Gmail-poll workflow has no incoming message to read it from, so the target chat ID is a fixed value set once during setup (see `docs/setup.md`). This means Phase 2 in its current form only supports a single Telegram user receiving email-derived proposals.
 - **The allowlist is manually maintained.** Sender/label rules require the user to keep the list current as important senders change — there's no learning or feedback loop from past yes/no answers back into the filter.
 - **A pending confirmation blocks normal chat commands for that user** until answered (see above) — an accepted tradeoff at personal-assistant scale, but would need revisiting (e.g. a `/pending` command, or scoping by keyword instead of "any message") if this were ever multi-user.
+
+## Phase 3 — Jira queries
+
+### Overview
+
+Phase 3 adds two read-only intents to the Phase 1 classifier, `jira_status` and `jira_blocked`. Each routes to its own Jira "Get Many" node, and both feed one shared formatter and one Telegram reply. Nothing is written to Jira or to Postgres.
+
+```
+Route by Intent
+  ├── jira_status  → Jira - Open Issues    ┐
+  └── jira_blocked → Jira - Blocked Issues ┴→ Format Jira List → Reply - Jira List
+```
+
+### Queries
+
+| Intent | JQL |
+|---|---|
+| `jira_status` | `assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC` |
+| `jira_blocked` | `assignee = currentUser() AND resolution = Unresolved AND (labels = blocked OR flagged is not EMPTY OR priority in (High, Highest)) ORDER BY priority DESC` |
+
+Both return at most 10 issues across every project the user can see. `Format Jira List` reads the intent from `Parse Intent Response` to pick the header and the empty-result message, so the two queries share one formatter.
+
+### Decisions worth knowing
+
+- **"Blocked" is a heuristic.** Jira has no built-in blocked state. The query treats a `blocked` label, a set Flagged field, or High/Highest priority as blocked, because those exist in every default Jira Cloud site. A JQL clause like `status = Blocked` fails the entire query with a validation error when the site has no status by that name, so it stays out of the default. Add it to the JQL if your workflow has that status.
+- **The classifier disambiguates by keyword.** "Jira", "ticket", "issue", and "sprint" always route to a `jira_*` intent, never `list_tasks`. Without that rule "what's on my plate" style phrasings collide with local tasks, the classifier's known weak spot.
+- **Both Jira nodes run with Always Output Data enabled**, for the same reason as the calendar branch: zero matching issues would otherwise skip the formatter and send no reply. The formatter filters on `i.key` to drop the placeholder item.
+
+### Known limitations
+
+- Queries cover every project, not a chosen one. Add `AND project = ABC` to the JQL to scope it.
+- Results cap at 10 issues, and there is no paging.
+- Only issues assigned to the token's owner appear. Queries for teammates' issues aren't supported.

@@ -48,7 +48,7 @@ services:
       - N8N_SECURE_COOKIE=false
       - GENERIC_TIMEZONE=Asia/Jakarta
       - TZ=Asia/Jakarta
-      - WEBHOOK_URL=https://YOUR-NGROK-DOMAIN/
+      - WEBHOOK_URL=https://${NGROK_DOMAIN}/
     volumes:
       - aipcc_n8n_data:/home/node/.n8n
     depends_on:
@@ -100,9 +100,9 @@ ngrok http 5679 --domain=YOUR-NGROK-DOMAIN
 
 **Leave this running in its own terminal window for the entire time you're using the bot.** If it's closed (or your machine sleeps), Telegram silently can't reach n8n anymore — this was the cause of several confusing failures during initial setup that looked like credential or code problems but were actually just a dead tunnel.
 
-Update `WEBHOOK_URL` in `docker-compose.yml` with the real domain, including scheme and trailing slash:
-```yaml
-- WEBHOOK_URL=https://YOUR-NGROK-DOMAIN/
+Put the real domain (no scheme, no slash) in a `.env` file next to `docker-compose.yml`. Compose reads it automatically, and `.env` is gitignored so your domain stays out of the repo:
+```
+NGROK_DOMAIN=your-name-123.ngrok-free.dev
 ```
 then:
 ```powershell
@@ -421,3 +421,38 @@ Test with the same debug loop as Phase 1 (unpublish → Listen for Test Event �
 3. Repeat, reply `no` this time — confirm the pending row is gone, nothing was added to `tasks`, and you get a "🗑️ Discarded." reply (easy to accidentally omit — the No branch needs its own Telegram reply node, separate from the Yes branch's).
 4. Reply with an unrelated message while a proposal is pending — confirm you get the re-prompt, not a normal Phase 1 response (see the known limitation in `docs/architecture.md`).
 5. Run the poll workflow again against the same email — confirm it's skipped (no duplicate proposal), since it's now in `processed_emails`.
+
+## 9. Phase 3 — Jira setup
+
+Design and query details: `docs/architecture.md` §"Phase 3 — Jira queries". `n8n/workflow-phase1.json` already contains all of this, so importing it is the fastest route.
+
+### 9.1 Jira credential
+
+1. Create an API token at id.atlassian.com → Security → API tokens. Treat it like a password: enter it only in n8n's credential form, never in chat or a committed file.
+2. In n8n, create a **Jira Software Cloud API** credential with your Atlassian email, the token, and Domain set to your site URL, e.g. `https://your-site.atlassian.net`. Copy it from your browser's address bar up to `.atlassian.net`, with no trailing slash or path.
+3. Save. n8n tests the connection immediately.
+
+### 9.2 Teach the classifier about Jira
+
+In the "Message a model" system prompt:
+- Add `"jira_status" | "jira_blocked"` to the `intent` list.
+- Add two rules describing them, plus `Words like "Jira", "ticket", "issue", or "sprint" always mean a jira_* intent, never list_tasks.`
+- Add both to the rule that forces `query_date` to null.
+
+Add two rules to the **Route by Intent** Switch, matching `jira_status` and `jira_blocked`, with outputs named `Jira Status` and `Jira Blocked`. They sit above the fallback output.
+
+### 9.3 Build the branch
+
+Two **Jira Software** nodes (Resource `Issue`, Operation `Get Many`, Limit `10`, JQL under Options), each with **Always Output Data** enabled in Settings:
+- `Jira - Open Issues` from `Jira Status`
+- `Jira - Blocked Issues` from `Jira Blocked`
+
+Both connect into one Code node, `Format Jira List`, then one Telegram node, `Reply - Jira List`. The JQL and formatter code are in the workflow file.
+
+### 9.4 A mistake that costs an afternoon
+
+**In a field showing the `fx` (expression) icon, type `{{ ... }}`, not `={{ ... }}`.** The leading `=` is how n8n stores expression mode internally, and typing it yourself adds a literal `=` to the value. On a Telegram node that turned the Chat ID into `=123456789` and produced "Bad Request: chat not found". In a text field it prepends a stray `=` to every message. If you see a `==` prefix in an exported workflow, a field has this problem.
+
+### 9.5 Testing
+
+Create two unresolved issues assigned to you in Jira, one with the label `blocked`. Send "status of my jira tickets" and "what's blocked in Jira". The plain issue appears only in the first reply, the labeled one in both. A site with no matching issues should reply "No open Jira issues assigned to you" or "Nothing blocked", not silence.

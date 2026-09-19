@@ -11,10 +11,10 @@
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.5,
       "position": [
-        -256,
-        0
+        1216,
+        1488
       ],
-      "id": "661dfb6f-afea-4b0b-b0e4-453c091470a6",
+      "id": "04128932-d1ee-4e28-ad4f-890675ed0ddb",
       "name": "Telegram Trigger",
       "credentials": {
         "telegramApi": {
@@ -35,10 +35,10 @@
           "values": [
             {
               "role": "system",
-              "content": "==You are an intent classification and entity extraction engine for a personal task assistant.\n\nToday's date is {{ $now.format('yyyy-MM-dd') }} ({{ $now.format('cccc') }}). Timezone: Asia/Jakarta.\n\nReturn ONLY valid JSON, no markdown formatting, no code fences, no explanation — just the raw JSON object, in this exact shape:\n{\n  \"intent\": \"create_task\" | \"list_tasks\" | \"create_event\" | \"list_events\" | \"unknown\",\n  \"title\": string or null,\n  \"description\": string or null,\n  \"due_at\": string or null,\n  \"query_date\": string or null\n}\n\nRules:\n- Use \"unknown\" if the message doesn't clearly match one of the other intents.\n- For create_task: title is required. due_at is optional — set it if the user mentioned a deadline or time (this makes it a reminder).\n- For create_event: title and due_at are both required (due_at is the event start time).\n- For list_tasks: title, description, and due_at should all be null.\n- For list_events: title, description, and due_at should all be null. Use this when the user is asking what's on their calendar/schedule, as opposed to asking about their to-do tasks.\n- query_date only applies to list_tasks and list_events. If the user asks about a specific day (\"today\", \"tomorrow\", \"this Friday\", \"on the 15th\"), resolve it into an absolute ISO date (YYYY-MM-DD) using today's date above. If no specific day is mentioned (e.g. plain \"what are my tasks\" or \"what's on my calendar\"), set query_date to null.\n- For create_task, create_event, and unknown, query_date is always null.\n- Resolve relative dates/times (\"Friday at 10am\", \"tomorrow\", \"next week\") into an absolute ISO 8601 datetime (e.g. \"2026-09-11T10:00:00+07:00\") using today's date above."
+              "content": "=You are an intent classification and entity extraction engine for a personal task assistant.\n\nToday's date is {{ $now.format('yyyy-MM-dd') }} ({{ $now.format('cccc') }}). Timezone: Asia/Jakarta.\n\nReturn ONLY valid JSON, no markdown formatting, no code fences, no explanation — just the raw JSON object, in this exact shape:\n{\n  \"intent\": \"create_task\" | \"list_tasks\" | \"create_event\" | \"list_events\" | \"jira_status\" | \"jira_blocked\" | \"unknown\",\n  \"title\": string or null,\n  \"description\": string or null,\n  \"due_at\": string or null,\n  \"query_date\": string or null\n}\n\nRules:\n- Use \"unknown\" if the message doesn't clearly match one of the other intents.\n- For create_task: title is required. due_at is optional — set it if the user mentioned a deadline or time (this makes it a reminder).\n- For create_event: title and due_at are both required (due_at is the event start time).\n- For list_tasks: title, description, and due_at should all be null.\n- For list_events: title, description, and due_at should all be null. Use this when the user is asking what's on their calendar/schedule, as opposed to asking about their to-do tasks.\n- jira_status: the user asks about Jira issues, tickets, sprint or project progress, or what they're working on. title, description, and due_at are null.\n- jira_blocked: the user asks about blocked, flagged, or high-priority Jira issues. title, description, and due_at are null.\n- Words like \"Jira\", \"ticket\", \"issue\", or \"sprint\" always mean a jira_* intent, never list_tasks.\n- query_date only applies to list_tasks and list_events. If the user asks about a specific day (\"today\", \"tomorrow\", \"this Friday\", \"on the 15th\"), resolve it into an absolute ISO date (YYYY-MM-DD) using today's date above. If no specific day is mentioned (e.g. plain \"what are my tasks\" or \"what's on my calendar\"), set query_date to null.\n- For create_task, create_event, jira_status, jira_blocked, and unknown, query_date is always null.\n- Resolve relative dates/times (\"Friday at 10am\", \"tomorrow\", \"next week\") into an absolute ISO 8601 datetime (e.g. \"2026-09-11T10:00:00+07:00\") using today's date above."
             },
             {
-              "content": "=={{ $('Telegram Trigger').item.json.message.text }}"
+              "content": "={{ $('Telegram Trigger').item.json.message.text }}"
             }
           ]
         },
@@ -48,10 +48,10 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.3,
       "position": [
-        288,
-        272
+        1760,
+        1760
       ],
-      "id": "6739f0e4-4853-4c6d-abb5-b26012f2b913",
+      "id": "ecf2a10c-5f2a-4c9a-8fe4-014a4eb331ed",
       "name": "Message a model",
       "credentials": {
         "openAiApi": {
@@ -67,10 +67,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        608,
-        272
+        2080,
+        1760
       ],
-      "id": "76d086b6-bb52-458b-a50b-aa6bdc871341",
+      "id": "fec715ef-66ce-464b-aa34-ed7f97a909e2",
       "name": "Parse Intent Response"
     },
     {
@@ -174,6 +174,54 @@
               },
               "renameOutput": true,
               "outputKey": "List Events"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ae4312af-fa31-4d49-afbb-84d1277da11c",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "jira_status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Jira Status"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f466c881-cc8a-4ceb-a44f-c9ed95f729cf",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "jira_blocked",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Jira Blocked"
             }
           ]
         },
@@ -184,10 +232,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        832,
-        224
+        2304,
+        1712
       ],
-      "id": "321bcdc7-c0c9-4849-9091-007f9c208977",
+      "id": "6511fc04-f0a1-45f8-be26-012b513b862a",
       "name": "Route by Intent"
     },
     {
@@ -310,10 +358,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        1040,
-        -144
+        2624,
+        1152
       ],
-      "id": "3094cf4d-ed4b-4fc0-87d2-d5d73a5d10d0",
+      "id": "73db7dfb-e642-41f3-9efe-fdb6dbfc15e4",
       "name": "Insert Task",
       "credentials": {
         "postgres": {
@@ -331,10 +379,10 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1264,
-        -144
+        2848,
+        1152
       ],
-      "id": "9f11b235-dd04-4367-bdb1-5a042eab186f",
+      "id": "31ebdb3a-5b3a-4f4f-9f8d-fc7bf50a0975",
       "name": "Reply - Task Added",
       "credentials": {
         "telegramApi": {
@@ -346,17 +394,18 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, title, description, due_at\nFROM tasks\nWHERE telegram_chat_id = {{ $('Parse Intent Response').item.json.telegram_chat_id }}\n  AND status = 'pending'\n  {{ $('Parse Intent Response').item.json.query_date ? `AND due_at >= '${$('Parse Intent Response').item.json.range_start}' AND due_at < '${$('Parse Intent Response').item.json.range_end}'` : '' }}\nORDER BY due_at ASC NULLS LAST, created_at ASC;",
+        "query": "SELECT id, title, description, due_at\nFROM tasks\nWHERE telegram_chat_id = {{ $('Parse Intent Response').item.json.telegram_chat_id }}\n  AND status = 'pending'\n  {{ $('Parse Intent Response').item.json.query_date\n      ? `AND due_at >= '${$('Parse Intent Response').item.json.range_start}' AND due_at < '${$('Parse Intent Response').item.json.range_end}'`\n      : `AND (due_at IS NULL OR due_at >= '${$('Parse Intent Response').item.json.range_start}')` }}\nORDER BY due_at ASC NULLS LAST, created_at ASC;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        1040,
-        16
+        2624,
+        1312
       ],
-      "id": "900ca41d-546c-4af2-baa4-a959991b5bc8",
+      "id": "8bc5d3ae-3dc6-44ca-bcb5-85ce20b36252",
       "name": "Query Pending Tasks",
+      "alwaysOutputData": true,
       "credentials": {
         "postgres": {
           "id": "REPLACE_ME",
@@ -371,10 +420,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1264,
-        16
+        2848,
+        1312
       ],
-      "id": "33e96291-35dc-4f3f-8780-962d76f32480",
+      "id": "cab5a409-6dfc-4f03-9a72-ec254b42c43b",
       "name": "Format Task List"
     },
     {
@@ -386,10 +435,10 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1488,
-        16
+        3072,
+        1312
       ],
-      "id": "357bdafe-9289-4ab3-b00e-1b4d89c68045",
+      "id": "3f2c157c-a0e2-4110-8502-968acd5b8ccc",
       "name": "Reply - Task List",
       "credentials": {
         "telegramApi": {
@@ -416,10 +465,10 @@
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
       "position": [
-        1040,
-        192
+        2624,
+        1488
       ],
-      "id": "3a68df0e-05e1-4f61-8bc5-c2b8a7df4cc5",
+      "id": "329c831b-9a43-43c0-95a8-ad9179d1d0a4",
       "name": "Create an event",
       "credentials": {
         "googleCalendarOAuth2Api": {
@@ -437,10 +486,10 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1264,
-        192
+        2848,
+        1488
       ],
-      "id": "240a644b-fb91-4ef1-9f0c-d1c0e43aee22",
+      "id": "3f6704a7-c990-4d0d-a30f-f188291330a4",
       "name": "Reply - Event Created",
       "credentials": {
         "telegramApi": {
@@ -458,10 +507,10 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1040,
-        592
+        2624,
+        2208
       ],
-      "id": "254030ef-3ce2-4245-9b7e-02295afc5633",
+      "id": "896b3328-2fca-4a48-8c2c-ec32fbab9799",
       "name": "Reply - Unknown Intent",
       "credentials": {
         "telegramApi": {
@@ -487,10 +536,10 @@
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
       "position": [
-        1040,
-        400
+        2624,
+        1696
       ],
-      "id": "1159c98e-37fa-4c43-90a3-75e448fe06c4",
+      "id": "63383d43-79ce-44b5-a8c9-df0f78915ec7",
       "name": "Get many events",
       "alwaysOutputData": true,
       "credentials": {
@@ -507,10 +556,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1264,
-        400
+        2848,
+        1696
       ],
-      "id": "96402053-e7c6-47cd-80dc-74a3cf963480",
+      "id": "4f80d86e-dcbb-4359-aee7-b5591515ce5f",
       "name": "Format Event List"
     },
     {
@@ -522,10 +571,10 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1536,
-        400
+        3120,
+        1696
       ],
-      "id": "267bd587-8eaa-4084-b97a-1a1b9264b413",
+      "id": "5ddf24e5-45a2-4b48-810c-aa05eb94f9a2",
       "name": "Reply - Event List",
       "credentials": {
         "telegramApi": {
@@ -543,10 +592,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        -64,
-        0
+        1408,
+        1488
       ],
-      "id": "a3199a26-8e86-4665-89d3-6f49343b7a51",
+      "id": "f64e9940-5e94-4696-950a-3c281494ae75",
       "name": "Check Pending Confirmation",
       "credentials": {
         "postgres": {
@@ -583,10 +632,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        112,
-        0
+        1584,
+        1488
       ],
-      "id": "62ba045a-3de1-4091-8007-4a757eade03c",
+      "id": "d0f8090f-643c-4cc9-b5de-90a6e5caaa75",
       "name": "Has Pending Confirmation?"
     },
     {
@@ -597,10 +646,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        336,
-        -176
+        1808,
+        1312
       ],
-      "id": "10560401-8da3-4616-9c5b-05353b8e4737",
+      "id": "9b5b1d0e-daf5-465d-9c25-8a5035840863",
       "name": "Parse Confirmation Reply"
     },
     {
@@ -664,10 +713,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        528,
-        -320
+        2000,
+        1168
       ],
-      "id": "d2c64bc3-29b3-4a8e-b76f-9f0352139105",
+      "id": "ed89744a-5c39-4335-bc6c-ae5d239ff9f1",
       "name": "Route by Confirmation Reply"
     },
     {
@@ -679,10 +728,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        736,
-        -672
+        2208,
+        816
       ],
-      "id": "82f6459c-0798-4574-999b-146f71434b38",
+      "id": "ee918564-8038-4e6a-81d0-97d74441a03a",
       "name": "Insert Confirmed Task",
       "credentials": {
         "postgres": {
@@ -700,10 +749,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        912,
-        -560
+        2416,
+        816
       ],
-      "id": "f0feed03-8092-440b-8dbf-951675b64be7",
+      "id": "b34e7309-3590-4b02-838b-74c9a141fc36",
       "name": "Delete Pending Confirmation",
       "credentials": {
         "postgres": {
@@ -715,16 +764,16 @@
     {
       "parameters": {
         "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
-        "text": "==✅ Task added: {{ $json.title }}",
+        "text": "=✅ Task added: {{ $json.title }}",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1088,
-        -672
+        2608,
+        816
       ],
-      "id": "c9589851-5c4b-48e8-b3f8-b442507e56fe",
+      "id": "b17343c9-d344-478c-8625-e11c028831d1",
       "name": "Reply - Confirmed Task Added",
       "credentials": {
         "telegramApi": {
@@ -742,10 +791,10 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1088,
-        -480
+        2800,
+        816
       ],
-      "id": "b3e6a1f4-7c2d-4a9e-8f1b-6d5c4e3a2b10",
+      "id": "22a49cf6-b332-4a90-841e-4cee8f9c6034",
       "name": "Reply - Discarded",
       "credentials": {
         "telegramApi": {
@@ -757,17 +806,99 @@
     {
       "parameters": {
         "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
-        "text": "==Please reply YES or NO for: \"{{ $json.title }}\"",
+        "text": "=Please reply YES or NO for: \"{{ $json.title }}\"",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        752,
-        -208
+        2240,
+        1216
       ],
-      "id": "15517028-a674-47db-a179-6222a753e764",
+      "id": "9abc8a1d-4739-47ad-aaa8-928825285ab3",
       "name": "Reply - Ask Yes or No",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 10,
+        "options": {
+          "jql": "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        2624,
+        1856
+      ],
+      "id": "4f29b1ef-dec9-4b53-b8f0-438fdc115417",
+      "name": "Jira - Open Issues",
+      "alwaysOutputData": true,
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "REPLACE_ME",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 10,
+        "options": {
+          "jql": "assignee = currentUser() AND resolution = Unresolved AND (labels = blocked OR flagged is not EMPTY OR priority in (High, Highest)) ORDER BY priority DESC"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        2624,
+        2032
+      ],
+      "id": "216cbf0f-59ce-4998-a41a-dd220186d720",
+      "name": "Jira - Blocked Issues",
+      "alwaysOutputData": true,
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "REPLACE_ME",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const issues = $input.all().map(i => i.json).filter(i => i && i.key);\nconst intent = $('Parse Intent Response').item.json.intent;\nconst header = intent === 'jira_blocked' ? '🚧 Blocked / high-priority issues:' : '🎫 Your open issues:';\n\nif (issues.length === 0) {\n  return [{ json: { reply_text: intent === 'jira_blocked' ? 'Nothing blocked. 🎉' : 'No open Jira issues assigned to you. 🎉' } }];\n}\n\nconst lines = issues.map((i, n) => {\n  const f = i.fields || {};\n  const meta = [f.status?.name, f.priority?.name].filter(Boolean).join(', ');\n  return `${n + 1}. ${i.key} ${f.summary} [${meta}]${f.duedate ? ` (due ${f.duedate})` : ''}`;\n});\n\nreturn [{ json: { reply_text: `${header}\\n\\n${lines.join('\\n')}` } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        1952
+      ],
+      "id": "20cc7266-e3c7-4843-a32e-8ca0c4c15636",
+      "name": "Format Jira List"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Intent Response').item.json.telegram_chat_id }}",
+        "text": "={{ $json.reply_text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3072,
+        1952
+      ],
+      "id": "45611601-9195-48b7-aa08-2c09c399f1d4",
+      "name": "Reply - Jira List",
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_ME",
@@ -837,6 +968,20 @@
         [
           {
             "node": "Get many events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Jira - Open Issues",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Jira - Blocked Issues",
             "type": "main",
             "index": 0
           }
@@ -990,6 +1135,39 @@
         [
           {
             "node": "Reply - Ask Yes or No",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira - Open Issues": {
+      "main": [
+        [
+          {
+            "node": "Format Jira List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira - Blocked Issues": {
+      "main": [
+        [
+          {
+            "node": "Format Jira List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Jira List": {
+      "main": [
+        [
+          {
+            "node": "Reply - Jira List",
             "type": "main",
             "index": 0
           }

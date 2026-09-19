@@ -23,7 +23,7 @@ services:
       - N8N_SECURE_COOKIE=false
       - GENERIC_TIMEZONE=Asia/Jakarta
       - TZ=Asia/Jakarta
-      - WEBHOOK_URL=https://YOUR-NGROK-DOMAIN/
+      - WEBHOOK_URL=https://${NGROK_DOMAIN}/
     volumes:
       - aipcc_n8n_data:/home/node/.n8n
     depends_on:
