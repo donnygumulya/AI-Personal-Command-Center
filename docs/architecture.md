@@ -206,3 +206,27 @@ Both return at most 10 issues across every project the user can see. `Format Jir
 - Queries cover every project, not a chosen one. Add `AND project = ABC` to the JQL to scope it.
 - Results cap at 10 issues, and there is no paging.
 - Only issues assigned to the token's owner appear. Queries for teammates' issues aren't supported.
+
+## Task reminders
+
+A third, independent workflow (`Every 5 Minutes → Claim Due Reminders → Send Reminder`) messages you on Telegram when a pending task is due within the next hour. It uses `tasks.reminded_at`, added in Phase 1 for this purpose, so each task is reminded once.
+
+One Postgres statement finds and marks the tasks together:
+
+```sql
+UPDATE tasks SET reminded_at = now(), updated_at = now()
+WHERE status = 'pending' AND reminded_at IS NULL AND due_at IS NOT NULL
+  AND due_at > now() - interval '15 minutes'
+  AND due_at <= now() + interval '1 hour'
+RETURNING id, telegram_chat_id, title, description, due_at;
+```
+
+Each returned row becomes one Telegram message, sent to that task's own `telegram_chat_id` (no hardcoded chat ID).
+
+### Decisions worth knowing
+
+- **Claim first, send second.** `reminded_at` is set before the message goes out, so a failed Telegram send loses that reminder instead of sending it twice. Reminders are at-most-once by design.
+- **An empty result sends nothing, on purpose.** n8n skips downstream nodes when a node returns zero items. Elsewhere that needed Always Output Data; here it's the desired behavior, so leave that setting off on `Claim Due Reminders`.
+- **15-minute grace window.** A task created due in 3 minutes can pass its due time before the next poll, and the window still reminds you. Older overdue tasks, including the whole backlog on the first run, are ignored, so activating the workflow doesn't flood you.
+- **Fixed lead time and polling delay.** One reminder, one hour ahead, up to 5 minutes late. Change the `1 hour` in the query for a different lead time. A second reminder at the due moment isn't implemented.
+- **No tunnel needed.** The workflow only sends outbound Telegram messages, so it works while ngrok is down, as long as n8n is running.

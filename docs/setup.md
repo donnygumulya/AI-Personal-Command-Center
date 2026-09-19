@@ -456,3 +456,16 @@ Both connect into one Code node, `Format Jira List`, then one Telegram node, `Re
 ### 9.5 Testing
 
 Create two unresolved issues assigned to you in Jira, one with the label `blocked`. Send "status of my jira tickets" and "what's blocked in Jira". The plain issue appears only in the first reply, the labeled one in both. A site with no matching issues should reply "No open Jira issues assigned to you" or "Nothing blocked", not silence.
+
+## 10. Task reminders
+
+Design and tradeoffs: `docs/architecture.md` §"Task reminders". This needs no new credentials and no schema change.
+
+1. Import `n8n/workflow-reminders.json` (Workflows → Import from File). Open the Postgres and Telegram nodes and select your existing credentials if they show blank.
+2. Toggle the workflow **Active**.
+
+The workflow makes only outbound Telegram calls, so it works without the ngrok tunnel. n8n just has to be running.
+
+**Test:** send the bot "remind me to test the reminder in 30 minutes" and wait up to 5 minutes. You should get "⏰ Reminder: ..." with the due time, and `SELECT title, reminded_at FROM tasks ORDER BY id DESC LIMIT 1;` should show `reminded_at` set. To skip the wait, open the workflow and click **Execute workflow**.
+
+Tasks that are already more than 15 minutes overdue, and tasks with no due time, are never reminded.

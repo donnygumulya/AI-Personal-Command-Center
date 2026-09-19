@@ -12,6 +12,8 @@ Type "remind me to follow up with HR on Friday at 10 AM" and the bot creates the
 
 **Phase 3** (complete, running): Two more intents, `jira_status` and `jira_blocked`, run a JQL query against Jira Cloud and reply with the issues assigned to you. "Blocked" means the `blocked` label, the Flagged field, or High/Highest priority.
 
+**Task reminders** (complete, running): A third workflow checks Postgres every 5 minutes and messages you on Telegram when a pending task is due within the hour.
+
 See `docs/architecture.md` for the full system design and `docs/setup.md` for setup instructions.
 
 ## Why build this
@@ -49,6 +51,8 @@ Telegram user
 
 A second workflow polls Gmail on a schedule, filters by sender or label, and asks OpenAI whether each email needs a task. When it does, that workflow writes the proposal the check above looks for.
 
+A third workflow runs every 5 minutes, marks pending tasks due within the hour as reminded, and sends each one to Telegram.
+
 Full diagram, design rationale, and known limitations live in `docs/architecture.md`.
 
 ## Repo structure
@@ -62,7 +66,8 @@ AIPCC/
 │   ├── setup.md             # Local setup: Telegram bot, n8n, Postgres, ngrok, Google/Gmail OAuth, Jira
 │   └── PHASE2_HANDOFF.md    # Phase 2 design decisions and rationale
 ├── n8n/
-│   └── workflow-phase1.json # Importable workflow: tasks, events, Jira queries, and the confirmation-reply extension
+│   ├── workflow-phase1.json    # Importable workflow: tasks, events, Jira queries, and the confirmation-reply extension
+│   └── workflow-reminders.json # Importable workflow: Telegram reminder for tasks due within the hour
 └── sql/
     └── schema.sql            # Postgres schema: tasks, message log, processed emails, pending confirmations
 ```
